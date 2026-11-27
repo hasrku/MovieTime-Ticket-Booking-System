@@ -1,279 +1,546 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Calendar, Clock, MapPin, MessageSquare, Star, Ticket, Users } from "lucide-react";
+import {
+    ArrowLeft,
+    Calendar,
+    Clock,
+    MapPin,
+    MessageSquare,
+    Star,
+    Ticket,
+    Users,
+    Clapperboard,
+    ChevronRight,
+    Film,
+    Send,
+} from "lucide-react";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import StarRating from "../components/StarRating";
+
+const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=400&q=80";
+
+function MovieSkeleton() {
+    return (
+        <div className="min-h-screen bg-[#0B0D12]">
+            <div className="h-[360px] animate-pulse bg-[#141720]" />
+            <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6">
+                <div className="h-6 w-36 animate-pulse rounded bg-[#1C212C]" />
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {[1, 2, 3].map((item) => (
+                        <div
+                            key={item}
+                            className="h-44 animate-pulse rounded-2xl border border-[#252832] bg-[#141720]"
+                        />
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SectionHeading({ icon: Icon, title, count }) {
+    return (
+        <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E53945]/20 bg-[#E53945]/10">
+                    <Icon className="h-4 w-4 text-[#E53945]" />
+                </div>
+                <div>
+                    <h2 className="text-lg font-bold tracking-tight text-[#E8EAF0]">{title}</h2>
+                    {count !== undefined && (
+                        <p className="mt-0.5 text-xs text-[#777D8B]">
+                            {count} {count === 1 ? "item" : "items"}
+                        </p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ShowCard({ show }) {
+    const dt = new Date(show.showTime);
+    const totalSeats = show.tickets?.length || 1;
+    const availableCount = Number(show.availableCount || 0);
+    const percentage = availableCount / totalSeats;
+
+    const availability =
+        percentage > 0.5
+            ? {
+                  label: "Available",
+                  style: "bg-emerald-500/10 text-emerald-400 border-emerald-500/15",
+                  dot: "bg-emerald-400",
+              }
+            : percentage > 0.2
+              ? {
+                    label: "Filling fast",
+                    style: "bg-amber-500/10 text-amber-400 border-amber-500/15",
+                    dot: "bg-amber-400",
+                }
+              : {
+                    label: "Almost full",
+                    style: "bg-[#E53945]/10 text-[#F16B75] border-[#E53945]/20",
+                    dot: "bg-[#E53945]",
+                };
+
+    return (
+        <article className="group overflow-hidden rounded-2xl border border-[#252832] bg-[#141720] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#3A3037] hover:bg-[#181C26]">
+            <div className="p-5">
+                <div className="mb-5 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[#858B99]">
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-[#E53945]" />
+                            <span className="truncate">{show.screenName}</span>
+                        </div>
+
+                        <p className="text-base font-bold text-[#E8EAF0]">
+                            {dt.toLocaleDateString(undefined, {
+                                weekday: "long",
+                                month: "short",
+                                day: "numeric",
+                            })}
+                        </p>
+
+                        <div className="mt-1.5 flex items-center gap-1.5 text-sm text-[#858B99]">
+                            <Clock className="h-3.5 w-3.5" />
+                            {dt.toLocaleTimeString(undefined, {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#20242E] text-[#858B99]">
+                        <Clapperboard className="h-5 w-5" />
+                    </div>
+                </div>
+
+                <div className="mb-5 flex items-center justify-between gap-2">
+                    <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${availability.style}`}
+                    >
+                        <span className={`h-1.5 w-1.5 rounded-full ${availability.dot}`} />
+                        {availability.label}
+                    </span>
+
+                    <span className="flex items-center gap-1.5 text-xs text-[#858B99]">
+                        <Users className="h-3.5 w-3.5" />
+                        {availableCount} seats left
+                    </span>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-[#252832] pt-4">
+                    <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#777D8B]">
+                            Ticket price
+                        </p>
+                        <p className="mt-1 text-lg font-bold tabular-nums text-[#E8EAF0]">
+                            {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(Number(show.ticketPrice || 0))}
+                        </p>
+                    </div>
+
+                    <Link
+                        to={`/shows/${show.id}/book`}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#E53945] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#CA2C38] active:scale-[0.98]"
+                    >
+                        Book seats
+                        <ChevronRight className="h-3.5 w-3.5" />
+                    </Link>
+                </div>
+            </div>
+        </article>
+    );
+}
+
+function ReviewCard({ review }) {
+    const initial = review.userName?.charAt(0)?.toUpperCase() || "?";
+
+    return (
+        <article className="rounded-2xl border border-[#252832] bg-[#141720] p-5 transition hover:border-[#343946]">
+            <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#E53945]/20 bg-[#E53945]/10 text-sm font-bold text-[#F16B75]">
+                        {initial}
+                    </div>
+
+                    <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#E8EAF0]">{review.userName}</p>
+                        <p className="mt-1 text-xs text-[#777D8B]">
+                            {new Date(review.createdAt).toLocaleDateString(undefined, {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                            })}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500/15 bg-amber-500/10 px-2.5 py-1.5">
+                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                    <span className="text-xs font-bold text-amber-400">{review.rating}/10</span>
+                </div>
+            </div>
+
+            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#A4A9B5]">{review.review}</p>
+        </article>
+    );
+}
 
 export default function MoviePage() {
-  const { slug } = useParams();
-  const { isAuthenticated } = useAuth();
+    const { slug } = useParams();
+    const { isAuthenticated } = useAuth();
 
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [reviewText, setReviewText] = useState("");
-  const [rating, setRating] = useState(8);
-  const [submitting, setSubmitting] = useState(false);
-  const [reviewError, setReviewError] = useState("");
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [reviewText, setReviewText] = useState("");
+    const [rating, setRating] = useState(0); // 0 means not rated yet
+    const [submitting, setSubmitting] = useState(false);
+    const [reviewError, setReviewError] = useState("");
 
-  useEffect(() => {
-    setLoading(true);
-    apiFetch(`/api/movies/${slug}`)
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [slug]);
+    useEffect(() => {
+        let cancelled = false;
 
-  const handleReviewSubmit = async (e) => {
-    e.preventDefault();
-    if (!reviewText.trim()) return;
-    setSubmitting(true); setReviewError("");
-    try {
-      const created = await apiFetch(`/api/movies/${data.movie.id}/reviews`, {
-        method: "POST",
-        body: JSON.stringify({ review: reviewText, rating: Number(rating) }),
-      });
-      setData((p) => ({ ...p, reviews: [created, ...p.reviews] }));
-      setReviewText("");
-    } catch (err) { setReviewError(err.message); }
-    finally { setSubmitting(false); }
-  };
+        setLoading(true);
+        setError("");
+        setData(null);
+        setReviewText("");
+        setRating(0); // a different movie starts unrated
+        setReviewError("");
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#f4f4f4]">
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="rounded-2xl bg-white animate-pulse h-72 mb-6" />
-        <div className="grid grid-cols-3 gap-4">
-          {[1,2,3].map(i => <div key={i} className="h-40 bg-white rounded-xl animate-pulse" />)}
-        </div>
-      </div>
-    </div>
-  );
+        apiFetch(`/api/movies/${slug}`)
+            .then((result) => {
+                if (!cancelled) setData(result);
+            })
+            .catch((e) => {
+                if (!cancelled) setError(e.message);
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
 
-  if (error || !data) return (
-    <div className="min-h-screen bg-[#f4f4f4] flex items-center justify-center">
-      <div className="text-center bg-white rounded-2xl p-10 shadow-sm border border-[#e5e5e5]">
-        <p className="text-lg font-bold text-[#e32636] mb-3">{error || "Movie not found"}</p>
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-[#e32636] hover:underline">
-          <ArrowLeft className="h-4 w-4" /> Back to Movies
-        </Link>
-      </div>
-    </div>
-  );
+        return () => {
+            cancelled = true;
+        };
+    }, [slug]);
 
-  const { movie, shows, reviews } = data;
+    const handleReviewSubmit = async (e) => {
+        e.preventDefault();
 
-  return (
-    <div className="min-h-screen bg-[#f4f4f4]">
-      {/* Hero backdrop */}
-      <div
-        className="relative bg-[#1a1a2e] overflow-hidden"
-        style={{ backgroundImage: `url(${movie.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }}
-      >
-        {/* Strong overlay */}
-        <div className="absolute inset-0 bg-[#1a1a2e]/88" />
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 py-8">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition mb-6">
-            <ArrowLeft className="h-4 w-4" /> All Movies
-          </Link>
+        if (!rating || !reviewText.trim() || submitting) return;
 
-          <div className="flex flex-col sm:flex-row gap-6">
-            {/* Poster */}
-            <div className="shrink-0 w-36 sm:w-44 rounded-xl overflow-hidden shadow-2xl border border-white/10 self-start">
-              <img
-                src={movie.imageUrl || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=400&q=80"}
-                alt={movie.name}
-                className="w-full aspect-[2/3] object-cover"
-              />
-            </div>
+        setSubmitting(true);
+        setReviewError("");
 
-            {/* Meta */}
-            <div className="text-white">
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="rounded border border-white/30 px-2 py-0.5 text-[11px] font-bold text-white/80">{movie.adultRating}</span>
-                {movie.releaseDate && (
-                  <span className="flex items-center gap-1 text-xs text-white/50">
-                    <Calendar className="h-3.5 w-3.5" /> {movie.releaseDate}
-                  </span>
-                )}
-                <span className="flex items-center gap-1 text-xs text-white/50">
-                  <Clock className="h-3.5 w-3.5" /> {movie.durationMinutes} min
-                </span>
-              </div>
+        try {
+            const created = await apiFetch(`/api/movies/${data.movie.id}/reviews`, {
+                method: "POST",
+                body: JSON.stringify({
+                    review: reviewText.trim(),
+                    rating: Number(rating),
+                }),
+            });
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold mb-2 leading-tight">{movie.name}</h1>
+            setData((previous) => {
+                if (previous?.movie.id !== data.movie.id) return previous;
 
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {(movie.genres || []).map((g) => (
-                  <span key={g} className="rounded-full border border-white/20 px-2.5 py-0.5 text-[11px] font-medium text-white/70">{g}</span>
-                ))}
-              </div>
+                return {
+                    ...previous,
+                    // Replaces the old copy if the server updated an existing review
+                    reviews: [created, ...(previous.reviews || []).filter((r) => r.id !== created.id)],
+                };
+            });
 
-              {movie.averageRating > 0 && (
-                <div className="inline-flex items-center gap-2 rounded-lg bg-white/10 border border-white/15 px-3 py-2 mb-3">
-                  <Star className="h-4 w-4 fill-[#f5a623] text-[#f5a623]" />
-                  <span className="text-sm font-bold">{movie.averageRating}<span className="text-white/50 font-normal">/10</span></span>
-                  <span className="text-xs text-white/40">{movie.reviewCount} reviews</span>
+            setReviewText(""); // the rating is intentionally kept
+
+            // Refresh the average rating and review count without showing the skeleton.
+            // A failure here is ignored because the review was already posted.
+            apiFetch(`/api/movies/${slug}`)
+                .then((fresh) => {
+                    setData((previous) => (previous?.movie.id === fresh?.movie?.id ? fresh : previous));
+                })
+                .catch(() => {});
+        } catch (err) {
+            setReviewError(err.message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    if (loading) return <MovieSkeleton />;
+
+    if (error || !data) {
+        return (
+            <div className="flex min-h-[70vh] items-center justify-center bg-[#0B0D12] px-4">
+                <div className="w-full max-w-md rounded-2xl border border-[#252832] bg-[#141720] p-8 text-center">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E53945]/10">
+                        <Film className="h-7 w-7 text-[#E53945]" />
+                    </div>
+
+                    <h2 className="text-xl font-bold text-[#E8EAF0]">Movie not found</h2>
+                    <p className="mt-2 text-sm text-[#858B99]">
+                        {error || "We couldn't find the movie you're looking for."}
+                    </p>
+
+                    <Link
+                        to="/"
+                        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#E53945] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#CA2C38]"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        Back to movies
+                    </Link>
                 </div>
-              )}
-
-              <p className="text-sm text-white/55 leading-relaxed max-w-lg">{movie.description}</p>
             </div>
-          </div>
-        </div>
-      </div>
+        );
+    }
 
-      {/* Content */}
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
-        {/* Showtimes */}
-        <section className="mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="h-5 w-1 rounded-full bg-[#e32636] inline-block" />
-            <h2 className="text-base font-bold text-[#1a1a2e] flex items-center gap-1.5">
-              <Ticket className="h-4 w-4 text-[#e32636]" /> Showtimes
-            </h2>
-          </div>
+    const { movie, shows = [], reviews = [] } = data;
 
-          {shows.length === 0 ? (
-            <div className="bg-white rounded-xl border border-[#e5e5e5] p-10 text-center text-[#aaa] text-sm">
-              No showtimes scheduled yet for this movie.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {shows.map((show) => {
-                const dt = new Date(show.showTime);
-                const pct = show.availableCount / (show.tickets?.length || 1);
-                return (
-                  <div key={show.id} className="bg-white rounded-xl border border-[#e5e5e5] p-4 shadow-sm hover:shadow-md hover:border-[#e32636]/30 transition">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="flex items-center gap-1 text-xs font-semibold text-[#4a90a4] mb-1">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" />
-                          <span className="line-clamp-1">{show.screenName}</span>
+    return (
+        <div className="min-h-screen bg-[#0B0D12] pb-16 text-[#E8EAF0]">
+            {/* Movie hero */}
+            <section className="relative isolate overflow-hidden border-b border-[#252832] bg-[#10131B]">
+                {/* Backdrop */}
+                <div
+                    className="absolute inset-0 -z-20 scale-105 bg-cover bg-center opacity-30 blur-sm"
+                    style={{
+                        backgroundImage: `url("${movie.imageUrl || FALLBACK_IMAGE}")`,
+                    }}
+                />
+
+                <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#0B0D12] via-[#0B0D12]/95 to-[#0B0D12]/75" />
+                <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#0B0D12] via-transparent to-[#0B0D12]/30" />
+
+                <div className="mx-auto max-w-6xl px-4 pb-12 pt-6 sm:px-6 sm:pb-16 sm:pt-8">
+                    <Link
+                        to="/"
+                        className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-[#858B99] transition hover:text-white"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        All movies
+                    </Link>
+
+                    <div className="flex flex-col gap-7 sm:flex-row sm:items-start sm:gap-9">
+                        {/* Poster */}
+                        <div className="w-36 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-[#141720] shadow-2xl shadow-black/40 sm:w-48">
+                            <img
+                                src={movie.imageUrl || FALLBACK_IMAGE}
+                                alt={movie.name}
+                                className="aspect-[2/3] w-full object-cover"
+                            />
                         </div>
-                        <p className="text-sm font-bold text-[#1a1a2e]">
-                          {dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
-                        </p>
-                        <p className="text-xs text-[#777]">
-                          {dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      </div>
-                      <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 shrink-0 ${
-                        pct > 0.5 ? "bg-[#e8f8f0] text-[#2d9e5c]"
-                        : pct > 0.2 ? "bg-[#fff8e6] text-[#e68a00]"
-                        : "bg-[#fff0f0] text-[#e32636]"
-                      }`}>
-                        {show.availableCount} seats
-                      </span>
-                    </div>
 
-                    <div className="flex items-center justify-between pt-3 border-t border-[#f0f0f0]">
-                      <div>
-                        <p className="text-[10px] text-[#aaa] uppercase tracking-wider font-medium">From</p>
-                        <p className="text-sm font-bold text-[#1a1a2e]">${Number(show.ticketPrice).toFixed(2)}</p>
-                      </div>
-                      <Link
-                        to={`/shows/${show.id}/book`}
-                        className="rounded-lg bg-[#e32636] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#b81c27] transition"
-                      >
-                        Book Now
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+                        {/* Movie details */}
+                        <div className="min-w-0 flex-1 pt-1">
+                            <div className="mb-4 flex flex-wrap items-center gap-2">
+                                {movie.adultRating && (
+                                    <span className="rounded-md border border-white/20 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-white/80">
+                                        {movie.adultRating}
+                                    </span>
+                                )}
 
-        {/* Reviews */}
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="h-5 w-1 rounded-full bg-[#e32636] inline-block" />
-              <h2 className="text-base font-bold text-[#1a1a2e] flex items-center gap-1.5">
-                <MessageSquare className="h-4 w-4 text-[#e32636]" /> Reviews
-                <span className="font-normal text-[#aaa]">({reviews.length})</span>
-              </h2>
-            </div>
+                                {movie.releaseDate && (
+                                    <span className="flex items-center gap-1.5 text-xs text-white/60">
+                                        <Calendar className="h-3.5 w-3.5" />
+                                        {movie.releaseDate}
+                                    </span>
+                                )}
 
-            {reviews.length === 0 ? (
-              <div className="bg-white rounded-xl border border-[#e5e5e5] p-8 text-center text-sm text-[#aaa]">
-                No reviews yet. Be the first to review!
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {reviews.map((r) => (
-                  <div key={r.id} className="bg-white rounded-xl border border-[#e5e5e5] p-4 shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-[#1a1a2e] text-white text-xs font-bold flex items-center justify-center shrink-0">
-                          {r.userName?.charAt(0)}
+                                <span className="flex items-center gap-1.5 text-xs text-white/60">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    {movie.durationMinutes} min
+                                </span>
+                            </div>
+
+                            <h1 className="max-w-3xl text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">
+                                {movie.name}
+                            </h1>
+
+                            {movie.genres?.length > 0 && (
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                    {movie.genres.map((genre) => (
+                                        <span
+                                            key={genre}
+                                            className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-white/70"
+                                        >
+                                            {genre}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            {movie.averageRating > 0 && (
+                                <div className="mt-5 inline-flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400/10">
+                                        <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-lg font-bold leading-none text-white">
+                                            {movie.averageRating}
+                                            <span className="ml-1 text-xs font-medium text-white/40">/ 10</span>
+                                        </p>
+                                        <p className="mt-1 text-[11px] text-white/50">
+                                            Based on {movie.reviewCount} reviews
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {movie.description && (
+                                <p className="mt-5 max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
+                                    {movie.description}
+                                </p>
+                            )}
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-[#1a1a2e] leading-none">{r.userName}</p>
-                          <p className="text-[11px] text-[#aaa] mt-0.5">{new Date(r.createdAt).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-                      <span className="inline-flex items-center gap-1 rounded bg-[#f5a623]/15 px-2 py-0.5 text-xs font-bold text-[#b8780a]">
-                        <Star className="h-3 w-3 fill-[#f5a623] text-[#f5a623]" /> {r.rating}/10
-                      </span>
                     </div>
-                    <p className="text-sm text-[#555] leading-relaxed">{r.review}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Review form */}
-          <div>
-            <div className="bg-white rounded-xl border border-[#e5e5e5] p-5 shadow-sm sticky top-20">
-              <h3 className="text-sm font-bold text-[#1a1a2e] mb-4 flex items-center gap-1.5">
-                <Star className="h-4 w-4 text-[#f5a623]" /> Rate This Movie
-              </h3>
-              {isAuthenticated ? (
-                <form onSubmit={handleReviewSubmit} className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-xs text-[#777] mb-1.5">
-                      <label className="font-semibold text-[#1a1a2e]">Rating</label>
-                      <span className="font-bold text-[#e32636]">{rating} / 10</span>
-                    </div>
-                    <input type="range" min="1" max="10" value={rating}
-                      onChange={(e) => setRating(e.target.value)}
-                      className="w-full accent-[#e32636] cursor-pointer"
-                    />
-                    <div className="flex justify-between text-[10px] text-[#aaa] mt-0.5">
-                      <span>Terrible</span><span>Masterpiece</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1a1a2e] mb-1.5">Your Review</label>
-                    <textarea rows={4} required value={reviewText}
-                      onChange={(e) => setReviewText(e.target.value)}
-                      placeholder="Write your thoughts…"
-                      className="w-full rounded-lg border border-[#e5e5e5] bg-[#f9f9f9] p-3 text-sm text-[#333] placeholder-[#bbb] focus:border-[#e32636] focus:outline-none focus:bg-white resize-none"
-                    />
-                  </div>
-                  {reviewError && <p className="text-xs text-[#e32636]">{reviewError}</p>}
-                  <button type="submit" disabled={submitting}
-                    className="w-full rounded-lg bg-[#e32636] py-2.5 text-sm font-bold text-white hover:bg-[#b81c27] disabled:opacity-50 cursor-pointer transition"
-                  >
-                    {submitting ? "Posting…" : "Submit Review"}
-                  </button>
-                </form>
-              ) : (
-                <div className="text-center py-2">
-                  <p className="text-sm text-[#777] mb-4">Sign in to write a review</p>
-                  <Link to="/login" className="inline-block rounded-lg bg-[#e32636] px-5 py-2 text-sm font-bold text-white hover:bg-[#b81c27] transition">
-                    Sign In
-                  </Link>
                 </div>
-              )}
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  );
+            </section>
+
+            {/* Main content */}
+            <main className="mx-auto max-w-6xl space-y-12 px-4 py-10 sm:px-6 sm:py-12">
+                {/* Showtimes */}
+                <section>
+                    <SectionHeading icon={Ticket} title="Choose a showtime" count={shows.length} />
+
+                    {shows.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-[#303541] bg-[#141720]/60 px-6 py-12 text-center">
+                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#20242E]">
+                                <Calendar className="h-5 w-5 text-[#858B99]" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-[#E8EAF0]">No showtimes available</h3>
+                            <p className="mt-2 text-xs text-[#777D8B]">
+                                There are no scheduled shows for this movie yet. Check back later.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {shows.map((show) => (
+                                <ShowCard key={show.id} show={show} />
+                            ))}
+                        </div>
+                    )}
+                </section>
+
+                {/* Reviews */}
+                <section>
+                    <SectionHeading icon={MessageSquare} title="Audience reviews" count={reviews.length} />
+
+                    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+                        {/* Review list */}
+                        <div className="space-y-4 lg:col-span-2">
+                            {reviews.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-[#303541] bg-[#141720]/60 px-6 py-12 text-center">
+                                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#20242E]">
+                                        <MessageSquare className="h-5 w-5 text-[#858B99]" />
+                                    </div>
+                                    <h3 className="text-sm font-semibold text-[#E8EAF0]">No reviews yet</h3>
+                                    <p className="mt-2 text-xs text-[#777D8B]">
+                                        Be the first to share what you thought about this movie.
+                                    </p>
+                                </div>
+                            ) : (
+                                reviews.map((review) => <ReviewCard key={review.id} review={review} />)
+                            )}
+                        </div>
+
+                        {/* Review form */}
+                        <aside className="lg:sticky lg:top-24">
+                            <div className="overflow-hidden rounded-2xl border border-[#252832] bg-[#141720] shadow-xl shadow-black/20">
+                                {/* Header */}
+                                <div className="border-b border-[#252832] bg-gradient-to-b from-amber-400/[0.07] to-transparent p-5">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/10">
+                                            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-bold text-[#E8EAF0]">Rate this movie</h3>
+                                            <p className="mt-0.5 text-xs text-[#777D8B]">Share your experience</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-5">
+                                    {isAuthenticated ? (
+                                        <form onSubmit={handleReviewSubmit} className="space-y-1">
+                                            {/* Rating */}
+                                            <div className="rounded-xl border border-[#252832] bg-[#0F1219] px-2 py-1.5">
+                                                <StarRating value={rating} onChange={setRating} disabled={submitting} />
+                                            </div>
+
+                                            {/* Review */}
+                                            <div>
+                                                <textarea
+                                                    id="movie-review"
+                                                    rows={5}
+                                                    required
+                                                    maxLength={2000}
+                                                    value={reviewText}
+                                                    onChange={(e) => setReviewText(e.target.value)}
+                                                    placeholder="What did you think of the movie?"
+                                                    className="w-full resize-none rounded-xl border border-[#303541] bg-[#0F1219] p-3.5 text-sm text-[#E8EAF0] outline-none transition placeholder:text-[#626978] focus:border-amber-400/60 focus:ring-2 focus:ring-amber-400/10"
+                                                />
+                                                <p className="mt-1.5 text-right text-[10px] text-[#626978]">
+                                                    {reviewText.length}/2000
+                                                </p>
+                                            </div>
+
+                                            {reviewError && (
+                                                <p
+                                                    role="alert"
+                                                    className="rounded-lg border border-[#E53945]/20 bg-[#E53945]/10 px-3 py-2 text-xs text-[#F16B75]"
+                                                >
+                                                    {reviewError}
+                                                </p>
+                                            )}
+
+                                            <div>
+                                                <button
+                                                    type="submit"
+                                                    disabled={submitting || !rating || !reviewText.trim()}
+                                                    className="flex w-full items-center justify-center gap-2 rounded-full bg-amber-400 py-3 text-sm font-bold text-[#14120A] transition hover:bg-amber-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#252A35] disabled:text-[#626978] disabled:active:scale-100"
+                                                >
+                                                    <Send className="h-4 w-4" />
+                                                    {submitting ? "Submitting..." : "Post review"}
+                                                </button>
+
+                                                {(!rating || !reviewText.trim()) && (
+                                                    <p className="mt-2 text-center text-[11px] text-[#777D8B]">
+                                                        {!rating
+                                                            ? "Select a star rating to continue"
+                                                            : "Write a review to continue"}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </form>
+                                    ) : (
+                                        <div className="py-3 text-center">
+                                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#20242E]">
+                                                <MessageSquare className="h-5 w-5 text-[#858B99]" />
+                                            </div>
+
+                                            <h4 className="text-sm font-semibold text-[#E8EAF0]">
+                                                Join the conversation
+                                            </h4>
+                                            <p className="mx-auto mt-2 max-w-[220px] text-xs leading-5 text-[#858B99]">
+                                                Sign in to rate this movie and share your thoughts.
+                                            </p>
+
+                                            <Link
+                                                to="/login"
+                                                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-amber-400 px-4 py-3 text-sm font-bold text-[#14120A] transition hover:bg-amber-300"
+                                            >
+                                                Sign in to review
+                                                <ChevronRight className="h-4 w-4" />
+                                            </Link>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                </section>
+            </main>
+        </div>
+    );
 }
