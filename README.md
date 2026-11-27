@@ -2,8 +2,6 @@
 
 A full-stack movie ticket booking application built with **Java 25 + Spring Boot** on the backend and **React + Vite + Tailwind CSS** on the frontend, backed by **Supabase PostgreSQL**, **Redis**, and **WebSockets (STOMP)** for real-time seat updates.
 
-Repository: [github.com/hasrku/MovieTime-Ticket-Booking-System](https://github.com/hasrku/MovieTime-Ticket-Booking-System)
-
 ---
 
 ## Features
@@ -76,7 +74,7 @@ npm run dev
 ## Demo Accounts (Seeded)
 
 | Role  | Email                  | Password    |
-|-------|------------------------|-------------|
+| ----- | ---------------------- | ----------- |
 | Admin | `admin1@movietime.com` | `Admin@123` |
 | User  | `user1@movietime.com`  | `User@123`  |
 
